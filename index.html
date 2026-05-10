@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>WebMap</title>
+
+  <link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet" />
+  <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@300;400;600&display=swap" rel="stylesheet" />
+
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:      #0e1117;
+      --panel:   #161b27;
+      --border:  #252d40;
+      --accent:  #4af2a1;
+      --accent2: #f2a14a;
+      --accent3: #a14af2;
+      --text:    #e2e8f0;
+      --muted:   #64748b;
+      --mono: 'IBM Plex Mono', monospace;
+      --sans: 'IBM Plex Sans', sans-serif;
+    }
+
+    html, body { height: 100%; background: var(--bg); color: var(--text); font-family: var(--sans); }
+
+    .layout { display: flex; flex-direction: column; height: 100vh; }
+
+    header {
+      display: flex; align-items: center; gap: 16px;
+      padding: 0 20px; height: 52px;
+      background: var(--panel);
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+    .logo {
+      font-family: var(--mono); font-size: 13px; font-weight: 600;
+      color: var(--accent); letter-spacing: 0.08em;
+      display: flex; align-items: center; gap: 8px;
+    }
+    .logo svg { width: 18px; height: 18px; }
+
+    .layer-toggles { display: flex; gap: 6px; margin-left: auto; }
+    .toggle-btn {
+      display: flex; align-items: center; gap: 6px;
+      padding: 5px 12px; border-radius: 4px;
+      font-family: var(--mono); font-size: 11px; font-weight: 600;
+      letter-spacing: 0.06em;
+      border: 1px solid var(--border);
+      background: transparent; color: var(--muted);
+      cursor: pointer; transition: all .2s;
+    }
+    .toggle-btn .swatch { width: 10px; height: 10px; border-radius: 2px; flex-shrink: 0; }
+    .toggle-btn.active  { background: var(--border); color: var(--text); }
+    .toggle-btn[data-kind="polygon1"]:hover { border-color: var(--accent);  color: var(--text); }
+    .toggle-btn[data-kind="polygon2"]:hover { border-color: var(--accent3); color: var(--text); }
+    .toggle-btn[data-kind="point"]:hover    { border-color: var(--accent2); color: var(--text); }
+
+    .map-wrap { flex: 1; position: relative; }
+    #map { width: 100%; height: 100%; }
+
+    /* status bar */
+    .status-bar {
+      position: absolute; bottom: 14px; left: 14px; z-index: 10;
+      display: flex; gap: 8px; pointer-events: none;
+    }
+    .stat-chip {
+      background: var(--panel); border: 1px solid var(--border);
+      border-radius: 4px; padding: 5px 10px;
+      font-family: var(--mono); font-size: 11px; color: var(--muted);
+      display: flex; align-items: center; gap: 6px;
+    }
+    .stat-chip .val { color: var(--text); }
+    .stat-chip .dot { width: 6px; height: 6px; border-radius: 2px; flex-shrink: 0; }
+
+    /* popup */
+    .maplibregl-popup-content {
+      background: var(--panel) !important;
+      border: 1px solid var(--border) !important;
+      border-radius: 8px !important;
+      padding: 0 !important;
+      box-shadow: 0 8px 32px rgba(0,0,0,.6) !important;
+      min-width: 200px; max-width: 300px;
+      font-family: var(--sans) !important;
+      color: var(--text) !important;
+    }
+    .maplibregl-popup-tip { display: none !important; }
+    .maplibregl-popup-close-button {
+      color: var(--muted) !important; font-size: 18px !important;
+      top: 8px !important; right: 10px !important; background: none !important;
+    }
+    .maplibregl-popup-close-button:hover { color: var(--text) !important; }
+
+    .popup-inner { padding: 14px 16px; }
+    .popup-type {
+      font-family: var(--mono); font-size: 10px; font-weight: 600;
+      letter-spacing: .1em; text-transform: uppercase;
+      margin-bottom: 10px; padding: 3px 8px; border-radius: 3px;
+      display: inline-block;
+    }
+    .popup-type.polygon1 { background: rgba(74,242,161,.12);  color: var(--accent);  }
+    .popup-type.polygon2 { background: rgba(161,74,242,.12);  color: var(--accent3); }
+    .popup-type.point    { background: rgba(242,161,74,.12);  color: var(--accent2); }
+
+    .popup-attrs { display: flex; flex-direction: column; gap: 5px; }
+    .attr-row { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
+    .attr-key { font-size: 11px; color: var(--muted); font-family: var(--mono); flex-shrink: 0; }
+    .attr-val { font-size: 12px; color: var(--text); text-align: right; word-break: break-word; }
+    .popup-empty { font-size: 12px; color: var(--muted); font-style: italic; }
+
+    /* info panel */
+    .info-panel {
+      position: absolute; top: 14px; left: 14px; z-index: 10;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 16px 18px;
+      width: 260px;
+      box-shadow: 0 4px 24px rgba(0,0,0,.5);
+    }
+    .info-panel-title {
+      font-family: var(--mono); font-size: 10px; font-weight: 600;
+      letter-spacing: .12em; color: var(--muted);
+      text-transform: uppercase; margin-bottom: 14px;
+    }
+    .info-stats {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 10px;
+      margin-bottom: 14px;
+    }
+    .info-stat {
+      background: var(--bg); border: 1px solid var(--border);
+      border-radius: 6px; padding: 10px 12px;
+    }
+    .info-stat-num {
+      font-family: var(--mono); font-size: 22px; font-weight: 600;
+      color: var(--text); line-height: 1;
+    }
+    .info-stat-num.accent  { color: var(--accent);  }
+    .info-stat-num.accent3 { color: var(--accent3); }
+    .info-stat-num.accent2 { color: var(--accent2); }
+    .info-stat-label {
+      font-size: 10px; color: var(--muted);
+      margin-top: 4px; line-height: 1.3;
+    }
+    .info-divider { border: none; border-top: 1px solid var(--border); margin: 12px 0; }
+    .info-desc {
+      font-size: 12px; color: var(--muted); line-height: 1.6;
+    }
+    .info-desc b { color: var(--text); font-weight: 600; }
+
+    .info-stat--time {
+      border-color: rgba(242,161,74,.25);
+      background: rgba(242,161,74,.04);
+    }
+    .info-stat--time .info-stat-num { color: var(--accent2); }
+
+    /* controls */
+    .maplibregl-ctrl-group {
+      background: var(--panel) !important;
+      border: 1px solid var(--border) !important;
+      border-radius: 6px !important;
+    }
+    .maplibregl-ctrl-group button { background: transparent !important; color: var(--text) !important; }
+    .maplibregl-ctrl-attrib { display: none !important; }
+  </style>
+</head>
+<body>
+<div class="layout">
+
+  <header>
+    <div class="logo">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="12" cy="12" r="10"/>
+        <path d="M2 12h20M12 2a15 15 0 0 1 0 20M12 2a15 15 0 0 0 0 20"/>
+      </svg>
+      ООПТ Подмосковья
+    </div>
+    <div class="layer-toggles">
+      <button class="toggle-btn active" id="btn-polygon1" data-kind="polygon1" onclick="toggleLayer('polygon1')">
+        <span class="swatch" style="background:var(--accent)"></span>
+        ООПТ, полигоны (ГИСОГД)
+      </button>
+      <button class="toggle-btn active" id="btn-polygon2" data-kind="polygon2" onclick="toggleLayer('polygon2')">
+        <span class="swatch" style="background:var(--accent3)"></span>
+        ООПТ, полигоны (НСПД)
+      </button>
+      <button class="toggle-btn active" id="btn-point" data-kind="point" onclick="toggleLayer('point')">
+        <span class="swatch" style="background:var(--accent2);border-radius:50%"></span>
+        ООПТ, вершины (извлечены при помощи LLM из постановлений)
+      </button>
+    </div>
+  </header>
+
+  <div class="map-wrap">
+    <div id="map"></div>
+
+    <!-- Info panel -->
+    <div class="info-panel">
+      <div class="info-panel-title">О проекте</div>
+      <div class="info-stats">
+        <div class="info-stat">
+          <div class="info-stat-num accent">40</div>
+          <div class="info-stat-label">постановлений обработано</div>
+        </div>
+        <div class="info-stat">
+          <div class="info-stat-num">117</div>
+          <div class="info-stat-label">должно быть</div>
+        </div>
+        <div class="info-stat">
+          <div class="info-stat-num accent3">101</div>
+          <div class="info-stat-label">ООПТ верно сформирована</div>
+        </div>
+        <div class="info-stat">
+          <div class="info-stat-num accent2">6</div>
+          <div class="info-stat-label">охранных зон</div>
+        </div>
+      </div>
+      <hr class="info-divider">
+      <div class="info-panel-title" style="margin-bottom:10px">⚡ Скорость обработки</div>
+      <div class="info-stats">
+        <div class="info-stat info-stat--time">
+          <div class="info-stat-num" style="font-size:18px">7,7 <span style="font-size:12px;color:var(--muted)">с</span></div>
+          <div class="info-stat-label">на один объект в среднем</div>
+        </div>
+        <div class="info-stat info-stat--time">
+          <div class="info-stat-num" style="font-size:18px">&lt;16 <span style="font-size:12px;color:var(--muted)">мин</span></div>
+          <div class="info-stat-label">на все 107 объектов</div>
+        </div>
+      </div>
+      <hr class="info-divider">
+      <div class="info-desc">
+        Вершины границ извлечены из постановлений Московской области с помощью <b>LLM</b> и сопоставлены с данными <b>ГИСОГД</b> и <b>НСПД</b>.
+      </div>
+    </div>
+
+    <div class="status-bar">
+      <div class="stat-chip">Zoom: <span class="val" id="val-zoom">4</span></div>
+    </div>
+  </div>
+
+</div>
+<script>
+
+
+const map = new maplibregl.Map({
+  container: 'map',
+  style: {
+    version: 8,
+    glyphs: 'https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf',
+    sources: {
+      osm: { type: 'raster', tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'], tileSize: 256 }
+    },
+    layers: [{ id: 'osm', type: 'raster', source: 'osm', paint: { 'raster-opacity': 0.35 } }]
+  },
+  center: [37.6, 55.75],
+  zoom: 4,
+  attributionControl: false
+});
+
+map.addControl(new maplibregl.NavigationControl(), 'bottom-right');
+map.addControl(new maplibregl.ScaleControl({ unit: 'metric' }), 'bottom-right');
+map.on('zoom', () => { document.getElementById('val-zoom').textContent = map.getZoom().toFixed(1); });
+
+map.on('load', () => {
+
+  // ── Polygon 1 (зелёный) ───────────────────────────────────
+  map.addSource('polygon1-src', {
+    type: 'geojson',
+    data: './data/mosreg_gisogd.geojson',
+    generateId: true
+  })
+  // map.addSource('polygon1-src', { type: 'geojson', data: withIds(POLYGON1_DATA) });
+  map.addLayer({
+    id: 'polygon1-fill', type: 'fill', source: 'polygon1-src',
+    paint: {
+      'fill-color': '#4af2a1',
+      'fill-opacity': ['case', ['boolean', ['feature-state','hover'], false], 0.38, 0.18]
+    }
+  });
+  
+  map.addLayer({
+    id: 'polygon1-stroke', type: 'line', source: 'polygon1-src',
+    paint: { 'line-color': '#4af2a1', 'line-width': 1.5, 'line-opacity': 0.8 }
+  });
+
+  // ── Polygon 2 (фиолетовый) ────────────────────────────────
+  map.addSource('polygon2-src', {
+    type: 'geojson',
+    data: './data/nspd_poly.geojson',
+    generateId: true
+  })
+  // map.addSource('polygon2-src', { type: 'geojson', data: withIds(POLYGON2_DATA) });
+  map.addLayer({
+    id: 'polygon2-fill', type: 'fill', source: 'polygon2-src',
+    paint: {
+      'fill-color': '#a14af2',
+      'fill-opacity': ['case', ['boolean', ['feature-state','hover'], false], 0.38, 0.18]
+    }
+  });
+  map.addLayer({
+    id: 'polygon2-stroke', type: 'line', source: 'polygon2-src',
+    paint: { 'line-color': '#a14af2', 'line-width': 1.5, 'line-opacity': 0.8 }
+  });
+
+  // ── Points (поверх полигонов) ─────────────────────────────
+  map.addSource('point-src', {
+    type: 'geojson',
+    data: './data/pt_llm_extract.geojson',
+    generateId: true
+  })
+  // map.addSource('point-src', { type: 'geojson', data: withIds(POINT_DATA) });
+  map.addLayer({
+    id: 'point-circle', type: 'circle', source: 'point-src',
+    paint: {
+      'circle-radius': ['case', ['boolean', ['feature-state','hover'], false], 5, 3],
+      'circle-color': 'black',
+      'circle-stroke-color': 'red',
+      'circle-stroke-width': 1,
+      'circle-opacity': 0.9
+    }
+  });
+
+  setupInteractions('polygon1-fill', 'polygon1', 'polygon1-src');
+  setupInteractions('polygon2-fill', 'polygon2', 'polygon2-src');
+  setupInteractions('point-circle',  'point',    'point-src');
+});
+
+// ── Interactions ──────────────────────────────────────────────
+let popup = null;
+const hovered = { polygon1: null, polygon2: null, point: null };
+const ALL_LAYERS = ['polygon1-fill', 'polygon2-fill', 'point-circle'];
+
+function setupInteractions(layerId, kind, srcId) {
+  map.on('mousemove', layerId, (e) => {
+    map.getCanvas().style.cursor = 'pointer';
+    const id = e.features[0].id;
+    if (hovered[kind] !== null && hovered[kind] !== id)
+      map.setFeatureState({ source: srcId, id: hovered[kind] }, { hover: false });
+    hovered[kind] = id;
+    map.setFeatureState({ source: srcId, id }, { hover: true });
+  });
+
+  map.on('mouseleave', layerId, () => {
+    map.getCanvas().style.cursor = '';
+    if (hovered[kind] !== null)
+      map.setFeatureState({ source: srcId, id: hovered[kind] }, { hover: false });
+    hovered[kind] = null;
+  });
+
+  map.on('click', layerId, (e) => {
+    e.preventDefault();
+    const f = e.features[0];
+    if (popup) popup.remove();
+    popup = new maplibregl.Popup({ closeButton: true, maxWidth: '320px' })
+      .setLngLat(e.lngLat)
+      .setHTML(buildPopup(f.properties, kind))
+      .addTo(map);
+  });
+}
+
+map.on('click', (e) => {
+  const hits = map.queryRenderedFeatures(e.point, { layers: ALL_LAYERS });
+  if (!hits.length && popup) { popup.remove(); popup = null; }
+});
+
+function buildPopup(props, kind) {
+  const labels = { polygon1: 'ООПТ (ГИСОГД)', polygon2: 'ООПТ (НСПД)', point: 'ООПТ, вершины, извлеченные из постановлений при помощий LLM' };
+  const keys = Object.keys(props || {});
+  const rows = keys.length === 0
+    ? `<div class="popup-empty">Нет атрибутов</div>`
+    : keys.map(k =>
+        `<div class="attr-row">
+          <span class="attr-key">${esc(k)}</span>
+          <span class="attr-val">${esc(String(props[k]))}</span>
+        </div>`).join('');
+  return `<div class="popup-inner">
+    <span class="popup-type ${kind}">${labels[kind]}</span>
+    <div class="popup-attrs">${rows}</div>
+  </div>`;
+}
+
+function esc(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// ── Toggle ────────────────────────────────────────────────────
+const layerVis = { polygon1: true, polygon2: true, point: true };
+const layerMap  = {
+  polygon1: ['polygon1-fill','polygon1-stroke'],
+  polygon2: ['polygon2-fill','polygon2-stroke'],
+  point:    ['point-circle']
+};
+
+function toggleLayer(kind) {
+  layerVis[kind] = !layerVis[kind];
+  const vis = layerVis[kind] ? 'visible' : 'none';
+  layerMap[kind].forEach(l => { if (map.getLayer(l)) map.setLayoutProperty(l, 'visibility', vis); });
+  document.getElementById('btn-' + kind).classList.toggle('active', layerVis[kind]);
+}
+
+// ── Helpers ───────────────────────────────────────────────────
+function withIds(fc) {
+  if (!fc || !fc.features) return fc;
+  return { ...fc, features: fc.features.map((f, i) => ({ ...f, id: i })) };
+}
+function updateCount(kind, fc) {
+  document.getElementById('cnt-' + kind).textContent = fc?.features?.length ?? 0;
+}
+</script>
+</body>
+</html>
