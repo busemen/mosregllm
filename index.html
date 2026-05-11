@@ -117,10 +117,31 @@
       background: var(--panel);
       border: 1px solid var(--border);
       border-radius: 8px;
-      padding: 16px 18px;
       width: 260px;
       box-shadow: 0 4px 24px rgba(0,0,0,.5);
+      overflow: hidden;
     }
+    .info-panel-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 12px 14px;
+      cursor: pointer;
+      user-select: none;
+      border-bottom: 1px solid var(--border);
+      transition: background .15s;
+    }
+    .info-panel-header:hover { background: rgba(255,255,255,.04); }
+    .info-panel-header-title {
+      font-family: var(--mono); font-size: 10px; font-weight: 600;
+      letter-spacing: .12em; color: var(--muted);
+      text-transform: uppercase;
+    }
+    .info-panel-chevron {
+      font-size: 14px; color: var(--muted); transition: transform .2s;
+      line-height: 1;
+    }
+    .info-panel-chevron.open { transform: rotate(180deg); }
+    .info-panel-body { padding: 14px 18px 16px; }
+    .info-panel-body.hidden { display: none; }
     .info-panel-title {
       font-family: var(--mono); font-size: 10px; font-weight: 600;
       letter-spacing: .12em; color: var(--muted);
@@ -157,6 +178,44 @@
     }
     .info-stat--time .info-stat-num { color: var(--accent2); }
 
+    /* attribution */
+    .attr-bar {
+      position: absolute; bottom: 14px; right: 90px; z-index: 10;
+      display: flex; gap: 6px; pointer-events: none;
+    }
+    .attr-chip {
+      background: var(--panel); border: 1px solid var(--border);
+      border-radius: 4px; padding: 4px 8px;
+      font-family: var(--mono); font-size: 10px; color: var(--muted);
+    }
+    .attr-chip a { color: var(--muted); text-decoration: none; pointer-events: all; }
+    .attr-chip a:hover { color: var(--text); }
+
+    /* measure tool */
+    .measure-btn {
+      position: absolute; top: 14px; right: 14px; z-index: 10;
+      display: flex; align-items: center; gap: 6px;
+      padding: 6px 12px; border-radius: 4px;
+      font-family: var(--mono); font-size: 11px; font-weight: 600;
+      letter-spacing: 0.06em;
+      border: 1px solid var(--border);
+      background: var(--panel); color: var(--muted);
+      cursor: pointer; transition: all .2s;
+      box-shadow: 0 2px 8px rgba(0,0,0,.4);
+    }
+    .measure-btn:hover { border-color: var(--accent2); color: var(--text); }
+    .measure-btn.active { background: var(--border); border-color: var(--accent2); color: var(--accent2); }
+    .measure-result {
+      position: absolute; top: 56px; right: 14px; z-index: 10;
+      background: var(--panel); border: 1px solid var(--border);
+      border-radius: 6px; padding: 8px 12px;
+      font-family: var(--mono); font-size: 12px; color: var(--text);
+      box-shadow: 0 2px 8px rgba(0,0,0,.4);
+      display: none;
+    }
+    .measure-result.visible { display: block; }
+    .measure-result .measure-hint { font-size: 10px; color: var(--muted); margin-top: 4px; }
+
     /* controls */
     .maplibregl-ctrl-group {
       background: var(--panel) !important;
@@ -188,7 +247,7 @@
         ООПТ, полигоны (НСПД)
       </button>
       <button class="toggle-btn active" id="btn-point" data-kind="point" onclick="toggleLayer('point')">
-        <span class="swatch" style="background:var(--accent2);border-radius:50%"></span>
+        <span class="swatch" style="background:black;border-radius:50%;border:2px solid red;width:10px;height:10px"></span>
         ООПТ, вершины (извлечены при помощи LLM из постановлений)
       </button>
     </div>
@@ -199,41 +258,61 @@
 
     <!-- Info panel -->
     <div class="info-panel">
-      <div class="info-panel-title">О проекте</div>
-      <div class="info-stats">
-        <div class="info-stat">
-          <div class="info-stat-num accent">40</div>
-          <div class="info-stat-label">постановлений обработано</div>
+      <div class="info-panel-header" onclick="toggleInfoPanel()">
+        <span class="info-panel-header-title">О проекте</span>
+        <span class="info-panel-chevron open" id="info-chevron">▾</span>
+      </div>
+      <div class="info-panel-body" id="info-body">
+        <div style="margin-bottom:14px"></div>
+        <div class="info-stats">
+          <div class="info-stat">
+            <div class="info-stat-num accent">40</div>
+            <div class="info-stat-label">постановлений обработано</div>
+          </div>
+          <div class="info-stat">
+            <div class="info-stat-num">117</div>
+            <div class="info-stat-label">объектов в постановлениях</div>
+          </div>
+          <div class="info-stat">
+            <div class="info-stat-num accent3">101</div>
+            <div class="info-stat-label">ООПТ сформировано</div>
+          </div>
+          <div class="info-stat">
+            <div class="info-stat-num accent2">6</div>
+            <div class="info-stat-label">охранных зон</div>
+          </div>
         </div>
-        <div class="info-stat">
-          <div class="info-stat-num">117</div>
-          <div class="info-stat-label">должно быть</div>
+        <hr class="info-divider">
+        <div class="info-panel-title" style="margin-bottom:10px">⚡ Скорость обработки</div>
+        <div class="info-stats">
+          <div class="info-stat info-stat--time">
+            <div class="info-stat-num" style="font-size:18px">7,7 <span style="font-size:12px;color:var(--muted)">с</span></div>
+            <div class="info-stat-label">на один объект в среднем</div>
+          </div>
+          <div class="info-stat info-stat--time">
+            <div class="info-stat-num" style="font-size:18px">&lt;16 <span style="font-size:12px;color:var(--muted)">мин</span></div>
+            <div class="info-stat-label">на все 107 объектов</div>
+          </div>
         </div>
-        <div class="info-stat">
-          <div class="info-stat-num accent3">101</div>
-          <div class="info-stat-label">ООПТ верно сформирована</div>
-        </div>
-        <div class="info-stat">
-          <div class="info-stat-num accent2">6</div>
-          <div class="info-stat-label">охранных зон</div>
+        <hr class="info-divider">
+        <div class="info-desc">
+          Вершины границ извлечены из постановлений Московской области с помощью <b>LLM</b> и сопоставлены с данными <b>ГИСОГД</b> и <b>НСПД</b>.
         </div>
       </div>
-      <hr class="info-divider">
-      <div class="info-panel-title" style="margin-bottom:10px">⚡ Скорость обработки</div>
-      <div class="info-stats">
-        <div class="info-stat info-stat--time">
-          <div class="info-stat-num" style="font-size:18px">7,7 <span style="font-size:12px;color:var(--muted)">с</span></div>
-          <div class="info-stat-label">на один объект в среднем</div>
-        </div>
-        <div class="info-stat info-stat--time">
-          <div class="info-stat-num" style="font-size:18px">&lt;16 <span style="font-size:12px;color:var(--muted)">мин</span></div>
-          <div class="info-stat-label">на все 107 объектов</div>
-        </div>
-      </div>
-      <hr class="info-divider">
-      <div class="info-desc">
-        Вершины границ извлечены из постановлений Московской области с помощью <b>LLM</b> и сопоставлены с данными <b>ГИСОГД</b> и <b>НСПД</b>.
-      </div>
+    </div>
+
+    <!-- Attribution -->
+    <div class="attr-bar">
+      <div class="attr-chip"><a href="https://www.openstreetmap.org/copyright" target="_blank">© OpenStreetMap</a></div>
+      <div class="attr-chip"><a href="https://nspd.gov.ru" target="_blank">© НСПД</a></div>
+      <div class="attr-chip"><a href="https://rgis.mosreg.ru/v3/#/map?bbox=36.82279,55.24118,38.81115,56.13033" target="_blank">© Геопортал Подмосковья</a></div>
+    </div>
+
+    <!-- Measure tool -->
+    <button class="measure-btn" id="measure-btn" onclick="toggleMeasure()">📏 Линейка</button>
+    <div class="measure-result" id="measure-result">
+      <span id="measure-val">0 м</span>
+      <div class="measure-hint">ПКМ — отменить последнюю точку</div>
     </div>
 
     <div class="status-bar">
@@ -243,7 +322,28 @@
 
 </div>
 <script>
+// ╔══════════════════════════════════════════════════════════════╗
+// ║  ДАННЫЕ  —  вставьте свои GeoJSON FeatureCollection ниже    ║
+// ╚══════════════════════════════════════════════════════════════╝
 
+const POLYGON1_DATA = {
+  type: 'FeatureCollection',
+  features: []
+  // Пример:
+  // features: [{ type:'Feature', properties:{name:'Зона А'}, geometry:{type:'Polygon', coordinates:[[[...]]]} }]
+};
+
+const POLYGON2_DATA = {
+  type: 'FeatureCollection',
+  features: []
+};
+
+const POINT_DATA = {
+  type: 'FeatureCollection',
+  features: []
+};
+
+// ══════════════════════════════════════════════════════════════
 
 const map = new maplibregl.Map({
   container: 'map',
@@ -351,6 +451,7 @@ function setupInteractions(layerId, kind, srcId) {
   });
 
   map.on('click', layerId, (e) => {
+    if (measuring) return;
     e.preventDefault();
     const f = e.features[0];
     if (popup) popup.remove();
@@ -362,6 +463,7 @@ function setupInteractions(layerId, kind, srcId) {
 }
 
 map.on('click', (e) => {
+  if (measuring) return;
   const hits = map.queryRenderedFeatures(e.point, { layers: ALL_LAYERS });
   if (!hits.length && popup) { popup.remove(); popup = null; }
 });
@@ -386,6 +488,14 @@ function esc(s) {
   return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
 
+function toggleInfoPanel() {
+  const body = document.getElementById('info-body');
+  const chev = document.getElementById('info-chevron');
+  const open = !body.classList.contains('hidden');
+  body.classList.toggle('hidden', open);
+  chev.classList.toggle('open', !open);
+}
+
 // ── Toggle ────────────────────────────────────────────────────
 const layerVis = { polygon1: true, polygon2: true, point: true };
 const layerMap  = {
@@ -401,7 +511,106 @@ function toggleLayer(kind) {
   document.getElementById('btn-' + kind).classList.toggle('active', layerVis[kind]);
 }
 
-// ── Helpers ───────────────────────────────────────────────────
+// ── Measure tool ──────────────────────────────────────────────
+let measuring = false;
+let measurePoints = [];
+let measureMarkers = [];
+let measureLineId = 'measure-line';
+let measureDotId  = 'measure-dots';
+
+function toggleMeasure() {
+  measuring = !measuring;
+  const btn = document.getElementById('measure-btn');
+  btn.classList.toggle('active', measuring);
+  map.getCanvas().style.cursor = measuring ? 'crosshair' : '';
+  if (!measuring) {
+    clearMeasure();
+    document.getElementById('measure-result').classList.remove('visible');
+  } else {
+    document.getElementById('measure-result').classList.add('visible');
+    document.getElementById('measure-val').textContent = 'Кликайте на карту…';
+    initMeasureLayers();
+  }
+}
+
+function initMeasureLayers() {
+  if (!map.getSource(measureLineId)) {
+    map.addSource(measureLineId, { type: 'geojson', data: emptyLine() });
+    map.addLayer({
+      id: measureLineId, type: 'line', source: measureLineId,
+      paint: { 'line-color': '#f2a14a', 'line-width': 2, 'line-dasharray': [4, 2] }
+    });
+  }
+  if (!map.getSource(measureDotId)) {
+    map.addSource(measureDotId, { type: 'geojson', data: emptyFC2() });
+    map.addLayer({
+      id: measureDotId, type: 'circle', source: measureDotId,
+      paint: { 'circle-radius': 5, 'circle-color': '#f2a14a', 'circle-stroke-color': '#0e1117', 'circle-stroke-width': 2 }
+    });
+  }
+}
+
+function emptyLine() { return { type: 'Feature', geometry: { type: 'LineString', coordinates: [] } }; }
+function emptyFC2()  { return { type: 'FeatureCollection', features: [] }; }
+
+function clearMeasure() {
+  measurePoints = [];
+  if (map.getSource(measureLineId)) map.getSource(measureLineId).setData(emptyLine());
+  if (map.getSource(measureDotId))  map.getSource(measureDotId).setData(emptyFC2());
+}
+
+function haversine([lng1,lat1], [lng2,lat2]) {
+  const R = 6371000, rad = Math.PI/180;
+  const dLat = (lat2-lat1)*rad, dLng = (lng2-lng1)*rad;
+  const a = Math.sin(dLat/2)**2 + Math.cos(lat1*rad)*Math.cos(lat2*rad)*Math.sin(dLng/2)**2;
+  return 2*R*Math.asin(Math.sqrt(a));
+}
+
+function totalLength(pts) {
+  let d = 0;
+  for (let i = 1; i < pts.length; i++) d += haversine(pts[i-1], pts[i]);
+  return d;
+}
+
+function formatDist(m) {
+  return m >= 1000 ? (m/1000).toFixed(2) + ' км' : Math.round(m) + ' м';
+}
+
+function updateMeasureDisplay() {
+  const d = totalLength(measurePoints);
+  document.getElementById('measure-val').textContent =
+    measurePoints.length < 2 ? 'Добавьте ещё точку…' : formatDist(d);
+}
+
+map.on('click', (e) => {
+  if (!measuring) return;
+  e.preventDefault();
+  measurePoints.push([e.lngLat.lng, e.lngLat.lat]);
+
+  map.getSource(measureLineId).setData({
+    type: 'Feature', geometry: { type: 'LineString', coordinates: measurePoints }
+  });
+  map.getSource(measureDotId).setData({
+    type: 'FeatureCollection',
+    features: measurePoints.map(c => ({ type:'Feature', geometry:{ type:'Point', coordinates:c } }))
+  });
+  updateMeasureDisplay();
+});
+
+map.getCanvas().addEventListener('contextmenu', (e) => {
+  if (!measuring || measurePoints.length === 0) return;
+  e.preventDefault();
+  measurePoints.pop();
+  map.getSource(measureLineId).setData({
+    type: 'Feature', geometry: { type: 'LineString', coordinates: measurePoints }
+  });
+  map.getSource(measureDotId).setData({
+    type: 'FeatureCollection',
+    features: measurePoints.map(c => ({ type:'Feature', geometry:{ type:'Point', coordinates:c } }))
+  });
+  updateMeasureDisplay();
+});
+
 function withIds(fc) {
   if (!fc || !fc.features) return fc;
   return { ...fc, features: fc.features.map((f, i) => ({ ...f, id: i })) };
